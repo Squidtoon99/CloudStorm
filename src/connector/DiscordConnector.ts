@@ -4,7 +4,6 @@ import { EventEmitter } from "events";
 import BetterWs from "../structures/BetterWs";
 import { GATEWAY_OP_CODES as OP } from "../Constants";
 import Intents from "../Intents";
-import WebSocket from "ws";
 
 let reconnecting = false;
 
@@ -72,13 +71,9 @@ class DiscordConnector extends EventEmitter {
 	/**
 	 * Connect to Discord.
 	 */
-	public connect(): void {
-		if (!this.betterWs) {
-			this.betterWs = new BetterWs(this.options.endpoint as string, this.options.ws);
-		} else {
-			this.betterWs.removeAllListeners();
-			this.betterWs.recreateWs(this.options.endpoint as string, this.options.ws);
-		}
+	public connect(): Promise<void> {
+		if (this.betterWs) this.betterWs.close();
+		this.betterWs = new BetterWs(this.options.endpoint as string, this.options.ws!);
 		this.betterWs.on("ws_open", () => {
 			this.status = "connecting";
 			reconnecting = false;
@@ -91,13 +86,14 @@ class DiscordConnector extends EventEmitter {
 		this.betterWs.on("debug_send", data => {
 			this.client.emit("rawSend", data);
 		});
+		return this.betterWs.connect();
 	}
 
 	/**
 	 * Close the websocket connection and disconnect.
 	 */
 	public async disconnect(): Promise<void> {
-		return this.betterWs?.close(1000, "Disconnected by User");
+		return this.betterWs?.close();
 	}
 
 	/**
@@ -174,13 +170,13 @@ class DiscordConnector extends EventEmitter {
 	 */
 	private async _reconnect(resume = false): Promise<void> {
 		if (resume) reconnecting = true;
-		if (this.betterWs?.ws.readyState === WebSocket.CONNECTING) {
+		if (this.betterWs?.status === 2) {
 			this.emit("error", `Client was attempting to ${resume ? "resume" : "reconnect"} while the WebSocket was still in the connecting state. This should never happen.${this.options.reconnect ? " Restarting the connect loop." : ""}`);
 			this.reset();
 			if (this.options.reconnect) this.connect();
 		}
 		// This is for instances where the gateway asks the client to reconnect. The ws would be closed by the time the code reaches here.
-		if (this.betterWs?.ws.readyState === WebSocket.OPEN) await this.betterWs?.close(resume ? 4000 : 1012, "reconnecting");
+		if (this.betterWs?.status === 1) await this.betterWs?.close();
 		if (resume) {
 			this.clearHeartBeat();
 		} else {
@@ -252,7 +248,6 @@ class DiscordConnector extends EventEmitter {
 	 * Send an OP 1 HEARTBEAT to the gateway.
 	 */
 	private heartbeat(): void {
-		if (this.betterWs?.ws.readyState !== WebSocket.OPEN) return;
 		this.betterWs?.sendMessage({ op: OP.HEARTBEAT, d: this.seq });
 		this.lastHeartbeatSend = Date.now();
 	}

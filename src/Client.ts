@@ -2,12 +2,6 @@
 
 const version = require("../package.json").version as string;
 import { EventEmitter } from "events";
-let Erlpack: typeof import("erlpack") | null;
-try {
-	Erlpack = require("erlpack");
-} catch (e) {
-	Erlpack = null;
-}
 import Constants from "./Constants";
 import { SnowTransfer } from "snowtransfer";
 import ShardManager from "./ShardManager";
@@ -72,7 +66,7 @@ class Client extends EventEmitter {
 			token: "",
 			ws: {
 				compress: true,
-				socket: undefined
+				encoding: "etf"
 			}
 		};
 		this._restClient = options.snowtransferInstance ? options.snowtransferInstance : new SnowTransfer(token);
@@ -213,7 +207,7 @@ class Client extends EventEmitter {
 	 * @param gatewayUrl Base gateway wss url to update the cached endpoint to.
 	 */
 	private _updateEndpoint(gatewayUrl: string): void {
-		this.options.endpoint = `${gatewayUrl}?v=${Constants.GATEWAY_VERSION}&encoding=${Erlpack ? "etf" : "json"}${this.options.ws?.compress ? "&compress=zlib-stream" : ""}`;
+		this.options.endpoint = `${gatewayUrl}?v=${Constants.GATEWAY_VERSION}&encoding=${this.options.ws?.encoding === "etf" ? "etf" : "json"}${this.options.ws?.compress ? "&compress=zlib-stream" : ""}`;
 	}
 }
 
