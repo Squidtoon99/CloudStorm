@@ -199,7 +199,7 @@ class BetterWs extends EventEmitter {
 		const socket = this._socket;
 		const internal = this._internal;
 		if(!socket) return;
-		this.emit("debug", "Closed");
+		this.emit("debug", "Connection closed");
 		socket.removeListener("data", this._onReadable);
 		socket.removeListener("error", this._onError);
 		socket.removeListener("close", this._onClose);
@@ -217,7 +217,7 @@ class BetterWs extends EventEmitter {
 		}
 		if(internal.closePromise) {
 			// @ts-ignore
-			internal.closePromise();
+			internal.closePromise.resolve();
 			return;
 		}
 	}
@@ -294,17 +294,17 @@ class BetterWs extends EventEmitter {
 			break;
 		}
 		case 8: {
-			const code = message.length > 1 ? (message[0] << 8) + message[1] : 1005;
+			const code = message.length > 1 ? (message[0] << 8) + message[1] : 0;
 			const reason = message.length > 2 ? message.slice(2).toString() : "";
 			this.emit("ws_close", code, reason);
-			if([1000, 1005, 4000].includes(code)) {
+			if(!internal.closePromise && ![4004, 4010, 4011, 4012, 4013, 4014].includes(code)) {
 				let resolver: (value: unknown) => void;
 				const promise = new Promise(resolve => { resolver = resolve; }).then(() => { internal.reconnectPromise = null; });
 				// @ts-ignore
 				promise.resolve = resolver;
 				internal.reconnectPromise = promise;
 			}
-			this._write(Buffer.allocUnsafe(0), 8);
+			this._write(Buffer.from([code >> 8, code & 255]), 8);
 			break;
 		}
 		case 9: {
